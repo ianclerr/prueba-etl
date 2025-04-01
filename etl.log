@@ -1,0 +1,12 @@
+2025-04-01 00:20:26,297 - INFO - === INICIANDO PROCESO ETL COMPLETO ===
+2025-04-01 00:20:26,298 - INFO - Iniciando carga de datos...
+2025-04-01 00:20:26,342 - INFO - Cargando datos para tabla: clientes
+2025-04-01 00:20:26,423 - INFO - Datos cargados en clientes: 3 registros
+2025-04-01 00:20:26,423 - INFO - Cargando datos para tabla: productos
+2025-04-01 00:20:26,432 - INFO - Datos cargados en productos: 3 registros
+2025-04-01 00:20:26,432 - INFO - Cargando datos para tabla: ventas
+2025-04-01 00:20:26,447 - INFO - Datos cargados en ventas: 3 registros
+2025-04-01 00:20:26,447 - INFO - Carga de datos completada exitosamente
+2025-04-01 00:20:26,447 - INFO - Generando reporte de ventas...
+2025-04-01 00:20:26,500 - WARNING - No hay datos para el período especificado
+2025-04-01 00:20:26,501 - ERROR - Falló la generación del reporte. Abortando...

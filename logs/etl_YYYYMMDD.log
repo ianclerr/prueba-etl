@@ -1,0 +1,25 @@
+import logging
+from datetime import datetime
+
+# Configuración avanzada de logs
+def setup_logging():
+    log_format = '%(asctime)s - %(levelname)s - [%(module)s] %(message)s'
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        handlers=[
+            logging.FileHandler(f"logs/etl_{datetime.now().strftime('%Y%m%d')}.log"),
+            logging.StreamHandler()
+        ]
+    )
+    logging.info("Inicio del proceso ETL")
+
+# Ejemplo de uso en tus funciones
+def load_data():
+    try:
+        logging.debug("Cargando datos desde Excel")
+        # Tu código aquí...
+        logging.info(f"Datos cargados en tabla 'clientes': {rowcount} registros")
+    except Exception as e:
+        logging.error(f"Error al cargar datos: {str(e)}", exc_info=True)
