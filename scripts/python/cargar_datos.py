@@ -16,11 +16,8 @@ Características:
 - Maneja errores de forma elegante
 
 CARGA DE DATOS - CONFIGURACIÓN EXTERNA SIMPLE
-
 Llamamos siempre la configuracion de la base de datos desde un archivo aparte 
-para no tener las credenciales visibles en el codigo principal, y en el
-.gitignore bloqueamos las vistas.
-
+para no tener las credenciales visibles en el codigo principal.
 """
 
 import pandas as pd
@@ -30,8 +27,7 @@ from openpyxl import load_workbook
 import sys
 from pathlib import Path
 
-# Configuración de rutas
-# (Permite importar módulos desde la carpeta config)
+# Configuracion de rutas
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from config.database import get_db_uri
 
@@ -90,7 +86,7 @@ def cargar_datos(engine, hoja):
         datos.to_sql(
             name=hoja,
             con=engine,
-            if_exists="append",  # Añade sin borrar datos existentes
+            if_exists="replace",  # Se puede agregar un replace o append, depende si se quere agregar o remplazar, sigue manteniento el enfoque de la logica ETL
             index=False
         )
         

@@ -27,3 +27,6 @@ FROM
 JOIN productos p ON v.producto_id = p.producto_id
 GROUP BY p.categoria
 ORDER BY total_ventas DESC;
+
+-- Estos son ""ejemplos"" de consultas un poco mas complejas que se utilizan en el codigo
+-- utilizando JOIN - GROUP BY - ORDER BY - BETWEEN

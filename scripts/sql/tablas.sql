@@ -23,3 +23,6 @@ CREATE TABLE IF NOT EXISTS ventas (
     cantidad INTEGER NOT NULL,
     monto_total DECIMAL(12,2) NOT NULL
 );
+
+-- Aqui van ""ejemplos"" de como se realiza la creacion de las tablas directamente en codigo SQL(POSTGRESQL)
+-- La forma de de llamar la clave foranea y asi.

@@ -1,3 +1,16 @@
+"""
+SCRIPT DE GENERACIÓN Y ENVÍO DE REPORTES DE VENTAS DESDE POSTGRESQL
+
+Este script automatiza:
+1. Extracción de datos de ventas desde PostgreSQL
+2. Generación de reporte en Excel con formato profesional
+3. Envío por email con métricas resumidas y archivo adjunto
+4. Manejo de errores y reintentos automáticos
+
+Configuración requerida:
+- Credenciales de DB en config/database.py
+- Configuración de email en config/email.py
+"""
 import pandas as pd
 from sqlalchemy import create_engine, text
 import smtplib
@@ -12,29 +25,37 @@ from pathlib import Path
 import time
 import logging
 
-# Configuración básica de logging
+# ==============================================
+# CONFIGURACIÓN INICIAL
+# ==============================================
+
+# Configuración del sistema de logging (registro de eventos)
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
+    level=logging.INFO,  # Nivel de detalle (INFO, WARNING, ERROR)
+    format='%(asctime)s - %(levelname)s - %(message)s',  # Formato del mensaje
+    handlers=[logging.StreamHandler()]  # Mostrar en consola
 )
 
-# Importar configuraciones desde la carpeta config
-sys.path.append(str(Path(__file__).parent.parent.parent))  # Añadir el directorio raíz al path
+# Añadir ruta del proyecto para importar configuraciones
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from config.database import get_db_uri
-from config.email import EMAIL_CONFIG
+# Importar configuraciones externas
+from config.database import get_db_uri  # Credenciales de DB
+from config.email import EMAIL_CONFIG  # Configuración de email
+
+# ==============================================
+# FUNCIONES PRINCIPALES
+# ==============================================
 
 def conectar_postgres():
     """
-    Establece conexión con PostgreSQL
+    Establece conexión con la base de datos PostgreSQL
     
     Returns:
         engine: Objeto de conexión SQLAlchemy o None si falla
     """
     try:
+        # Crear motor de conexión usando la URI de la DB
         engine = create_engine(get_db_uri())
         logging.info("✅ Conexión exitosa a PostgreSQL")
         return engine
@@ -44,16 +65,17 @@ def conectar_postgres():
 
 def obtener_rango_fechas(engine):
     """
-    Obtiene el rango real de fechas disponible en la base de datos
+    Obtiene el rango de fechas disponible en la tabla de ventas
     
     Args:
-        engine: Conexión a la base de datos
+        engine: Conexión activa a la base de datos
         
     Returns:
         tuple: (fecha_min, fecha_max) o None si hay error
     """
     try:
         with engine.connect() as conn:
+            # Consulta SQL para obtener fechas mínima y máxima
             result = conn.execute(text("SELECT MIN(fecha), MAX(fecha) FROM ventas"))
             return result.fetchone()
     except Exception as e:
@@ -62,34 +84,42 @@ def obtener_rango_fechas(engine):
 
 def generar_reporte_excel(df, fecha_min, fecha_max):
     """
-    Genera el archivo Excel con formato profesional
+    Genera archivo Excel con formato profesional a partir de los datos
     
     Args:
-        df: DataFrame con los datos a exportar
-        fecha_min: Fecha inicial del reporte
-        fecha_max: Fecha final del reporte
+        df: DataFrame con los datos de ventas
+        fecha_min: Fecha inicial del período
+        fecha_max: Fecha final del período
         
     Returns:
         str: Ruta del archivo generado o None si falla
     """
     try:
+        # Crear directorio para reportes si no existe
         os.makedirs('reportes', exist_ok=True)
+        
+        # Nombre del archivo con rango de fechas
         nombre_reporte = f"reportes/reporte_ventas_{fecha_min.strftime('%Y%m%d')}_{fecha_max.strftime('%Y%m%d')}.xlsx"
         
+        # Crear archivo Excel con pandas y openpyxl
         with pd.ExcelWriter(nombre_reporte, engine='openpyxl') as writer:
+            # Exportar DataFrame a Excel
             df.to_excel(writer, index=False, sheet_name='Ventas')
             
+            # Obtener objetos para formateo
             workbook = writer.book
             worksheet = writer.sheets['Ventas']
             
-            # Formatear columnas
+            # Formatear columna de fechas
             for cell in worksheet['B'][1:]:
                 cell.number_format = 'DD/MM/YYYY'
             
+            # Ajustar anchos de columnas
             column_widths = {'A': 10, 'B': 12, 'C': 25, 'D': 25, 'E': 10, 'F': 18}
             for col, width in column_widths.items():
                 worksheet.column_dimensions[col].width = width
             
+            # Formatear columna de montos (moneda)
             for cell in worksheet['F'][1:]:
                 cell.number_format = '"Gs."#,##0'
         
@@ -101,7 +131,7 @@ def generar_reporte_excel(df, fecha_min, fecha_max):
 
 def obtener_metricas_ventas(df):
     """
-    Calcula las métricas clave del reporte
+    Calcula métricas clave a partir de los datos de ventas
     
     Args:
         df: DataFrame con los datos de ventas
@@ -119,29 +149,31 @@ def obtener_metricas_ventas(df):
 
 def enviar_email_con_reintentos(reporte_path, metrics, fecha_min, fecha_max, total_registros, max_intentos=3):
     """
-    Envía el email con el reporte, con reintentos automáticos en caso de fallo
+    Envía email con reporte adjunto y sistema de reintentos
     
     Args:
-        reporte_path: Ruta del archivo a enviar
-        metrics: Métricas calculadas del reporte
-        fecha_min: Fecha inicial del reporte
-        fecha_max: Fecha final del reporte
-        total_registros: Total de registros procesados
-        max_intentos: Número máximo de reintentos (default: 3)
+        reporte_path: Ruta del archivo a adjuntar
+        metrics: Métricas calculadas
+        fecha_min: Fecha inicio del reporte
+        fecha_max: Fecha fin del reporte
+        total_registros: Total de ventas procesadas
+        max_intentos: Intentos máximos de envío
         
     Returns:
-        bool: True si el envío fue exitoso, False si falló después de todos los reintentos
+        bool: True si tuvo éxito, False si falló
     """
     intento = 1
     while intento <= max_intentos:
         try:
             logging.info(f"✉️ Procesando envío de email (Intento {intento}/{max_intentos})...")
             
+            # 1. CONFIGURAR MENSAJE MIME
             msg = MIMEMultipart()
             msg['From'] = EMAIL_CONFIG['email_from']
             msg['To'] = EMAIL_CONFIG['email_to']
             msg['Subject'] = f"REPORTE VENTAS {fecha_min.strftime('%d-%m-%Y')} al {fecha_max.strftime('%d-%m-%Y')}"
             
+            # 2. CREAR CUERPO DEL EMAIL
             cuerpo = f"""
 REPORTE DE VENTAS - RESUMEN
 ==========================
@@ -161,14 +193,16 @@ Se adjunta el reporte detallado en formato Excel.
 """
             msg.attach(MIMEText(cuerpo, 'plain'))
             
+            # 3. ADJUNTAR ARCHIVO EXCEL
             with open(reporte_path, "rb") as f:
                 adjunto = MIMEApplication(f.read(), _subtype="xlsx")
                 adjunto.add_header('Content-Disposition', 'attachment', 
                                 filename=f"reporte_ventas_{fecha_min.strftime('%Y%m%d')}_{fecha_max.strftime('%Y%m%d')}.xlsx")
                 msg.attach(adjunto)
             
+            # 4. ENVIAR EMAIL POR SMTP
             with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
-                server.starttls()
+                server.starttls()  # Seguridad TLS
                 server.login(EMAIL_CONFIG['email_from'], EMAIL_CONFIG['email_password'])
                 server.send_message(msg)
                 logging.info("✅ Email enviado exitosamente")
@@ -184,30 +218,34 @@ Se adjunta el reporte detallado en formato Excel.
     logging.error(f"🚨 No se pudo enviar el email después de {max_intentos} intentos")
     return False
 
+# ==============================================
+# FUNCIÓN PRINCIPAL
+# ==============================================
+
 def main():
     """
-    Función principal que orquesta todo el proceso:
-    1. Conexión a la base de datos
-    2. Obtención de datos
+    Función principal que coordina todo el proceso:
+    1. Conexión a DB
+    2. Extracción de datos
     3. Generación de reporte
-    4. Envío de email con reintentos automáticos
+    4. Envío por email
     """
     logging.info("\n=== SISTEMA DE ENVÍO DE REPORTES ===")
     
-    # Paso 1: Conexión a la base de datos
+    # 1. CONEXIÓN A LA BASE DE DATOS
     engine = conectar_postgres()
     if not engine:
         return
     
     try:
-        # Paso 2: Obtener rango de fechas
+        # 2. OBTENER RANGO DE FECHAS
         fechas = obtener_rango_fechas(engine)
         if not fechas:
             return
         fecha_min, fecha_max = fechas
         logging.info(f"📅 Rango de fechas disponible: {fecha_min} a {fecha_max}")
         
-        # Paso 3: Consultar datos
+        # 3. CONSULTAR DATOS DE VENTAS
         query = text("""
         SELECT 
             v.venta_id,
@@ -234,15 +272,15 @@ def main():
                 logging.warning("⚠️ No hay ventas en el período disponible")
                 return
             
-            # Paso 4: Calcular métricas (aunque no se muestren)
+            # 4. CALCULAR MÉTRICAS
             metrics = obtener_metricas_ventas(df)
             
-            # Paso 5: Generar Excel
+            # 5. GENERAR REPORTE EXCEL
             reporte_path = generar_reporte_excel(df, fecha_min, fecha_max)
             if not reporte_path:
                 return
             
-            # Paso 6: Enviar email con reintentos
+            # 6. ENVIAR EMAIL CON REPORTE
             enviar_email_con_reintentos(reporte_path, metrics, fecha_min, fecha_max, len(df))
             
     except Exception as e:
@@ -251,5 +289,6 @@ def main():
         engine.dispose()
         logging.info("🔚 Proceso completado")
 
+# Punto de entrada del script
 if __name__ == "__main__":
     main()
